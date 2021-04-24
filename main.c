@@ -3,6 +3,8 @@
 #include <time.h>
 #include <sys/time.h>
 #include <omp.h>
+//Sebastian Wilk
+//Damian Dymek
 
 int main(int argc, char *argv[])
 {        
