@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/time.h>
 #include <omp.h>
 
 int main(int argc, char *argv[])
@@ -34,7 +35,11 @@ int main(int argc, char *argv[])
     int tn;
     for (tn = 0; tn<maxNThreads; tn++){
         seeds[tn] = rand();
-    } 
+    }
+
+    struct timeval tval_before, tval_after, tval_result;
+
+    gettimeofday(&tval_before, NULL);
 
     #pragma omp parallel
     {
@@ -43,12 +48,14 @@ int main(int argc, char *argv[])
         #pragma omp for
         for(i=0 ; i < table_size ; i++){
             v[i] = rand_r(&myseed)%maxValue;
-            //printf("iterację %d wykonuje wątek nr %d wartosc %d \n" , i , omp_get_thread_num(), v[i]);
         }
-
-        
     }
+    gettimeofday(&tval_after, NULL);
 
+    timersub(&tval_after, &tval_before, &tval_result);
+
+    printf("%lld, %ld.%06ld\n", table_size, (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+    
     free(seeds);
     free(v);
     return 0;
