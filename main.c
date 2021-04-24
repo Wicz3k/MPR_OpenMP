@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <omp.h>
 
 int main(int argc, char *argv[])
 {        
+    unsigned int maxValue = 1000000000;
     srand(time(NULL));
     unsigned long long table_size = 0;
     if(argc < 2){
@@ -40,7 +42,7 @@ int main(int argc, char *argv[])
         unsigned int myseed = seeds[omp_get_thread_num()];
         #pragma omp for
         for(i=0 ; i < table_size ; i++){
-            v[i] = rand_r(&myseed);
+            v[i] = rand_r(&myseed)%maxValue;
             //printf("iterację %d wykonuje wątek nr %d wartosc %d \n" , i , omp_get_thread_num(), v[i]);
         }
 
