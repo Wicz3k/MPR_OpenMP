@@ -14,7 +14,6 @@ int main(int argc, char *argv[])
         return -1;
     }
     table_size = strtoll(argv[1], NULL, 0);
-    printf("table_size: %lld\n", table_size);
 
     unsigned int* v = malloc(table_size * sizeof(unsigned int));
     if(v == NULL){
@@ -41,11 +40,11 @@ int main(int argc, char *argv[])
 
     gettimeofday(&tval_before, NULL);
 
-    #pragma omp parallel
+    #pragma omp parallel default(none) shared(seeds, table_size, v, maxValue)
     {
         int i;
         unsigned int myseed = seeds[omp_get_thread_num()];
-        #pragma omp for
+        #pragma omp for schedule(runtime)
         for(i=0 ; i < table_size ; i++){
             v[i] = rand_r(&myseed)%maxValue;
         }
@@ -54,7 +53,7 @@ int main(int argc, char *argv[])
 
     timersub(&tval_after, &tval_before, &tval_result);
 
-    printf("%lld, %ld.%06ld\n", table_size, (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+    printf("%ld.%06ld\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
     
     free(seeds);
     free(v);
