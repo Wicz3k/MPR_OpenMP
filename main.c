@@ -21,9 +21,10 @@ int main(int argc, char *argv[])
     //#pragma omp parallel
     {
         int i;
+        unsigned int myseed = omp_get_thread_num();
         //#pragma omp for
         for(i=0 ; i < table_size ; i++){
-            v[i] = rand();
+            v[i] = rand_r(&myseed);
             //printf("iterację %d wykonuje wątek nr %d wartosc %d \n" , i , omp_get_thread_num(), v[i]);
         }
 
