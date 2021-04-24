@@ -4,7 +4,6 @@
 
 int main(int argc, char *argv[])
 {        
-    srand(time(NULL));
     unsigned long long table_size = 0;
     if(argc < 2){
         printf("Parameters: table_size\n");
@@ -18,11 +17,11 @@ int main(int argc, char *argv[])
         printf("Could not allocate table_size: %lld\n", table_size);
         return -1;
     }
-    //#pragma omp parallel
+    #pragma omp parallel
     {
         int i;
         unsigned int myseed = omp_get_thread_num();
-        //#pragma omp for
+        #pragma omp for
         for(i=0 ; i < table_size ; i++){
             v[i] = rand_r(&myseed);
             //printf("iterację %d wykonuje wątek nr %d wartosc %d \n" , i , omp_get_thread_num(), v[i]);
