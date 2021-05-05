@@ -18,42 +18,35 @@ unsigned int THRED_N = 2;
 
 struct Bucket {
     int *tab;
-    int tab_size;
+    int max_size;
     int current_size;
-} bucket;
+};
 
+// generowanie tablicy z losowymi liczbami z zakresu 0 - maxValue
 void generate_random_array(int *tab, int table_size){
     int maxNThreads = 1;
-    omp_set_num_threads(THRED_N); // ustawienie liczby wątków
-    #pragma omp parallel
+    #pragma omp parallel 
     {
-        if(omp_get_thread_num() == 0)
-        {
+        if(omp_get_thread_num() == 0){
             maxNThreads = omp_get_num_threads();
         }
     }
-
     unsigned int* seeds;
     seeds = malloc(maxNThreads * sizeof(unsigned int));
     int tn;
     for (tn = 0; tn<maxNThreads; tn++){
         seeds[tn] = rand();
     }
-
     struct timeval tval_before, tval_after, tval_result;
-
     gettimeofday(&tval_before, NULL);
-
     #pragma omp parallel default(none) shared(seeds, table_size, tab, maxValue)
     {
         int i;
-        int tid;
-        tid = omp_get_thread_num();
         unsigned int myseed = seeds[omp_get_thread_num()];
         #pragma omp for schedule(runtime)
         for(i=0 ; i < table_size ; i++){
             tab[i] = rand_r(&myseed)%maxValue;
-            printf("Thred nr: %d, iteration: %d\n", tid, i);
+            
         }
     }
     gettimeofday(&tval_after, NULL);
@@ -63,6 +56,23 @@ void generate_random_array(int *tab, int table_size){
     return;
 }
 
+// stworzenie kubełka z tablicą o rozmiarze table_size
+struct Bucket *declare_bucket(int table_size){ 
+    struct Bucket *bucket;
+    bucket->tab = malloc(table_size * sizeof(unsigned int));
+    bucket->current_size = 0;
+    bucket->max_size = table_size;
+    return bucket;
+}
+
+// czyszczenie pamięci
+void free_bucket(struct Bucket *bucket){ //
+    free(bucket->tab);
+    free(bucket);
+    return;
+}
+
+// ⬇️ kod do debugowania
 void show_tab(int *tab, int table_size){
     printf("Show table:\n");
     int i;
@@ -71,6 +81,14 @@ void show_tab(int *tab, int table_size){
     }
     return;
 }
+void show_bucket(struct Bucket bucket){
+    int i;
+    for(i=0; i<bucket.current_size; i++){
+        printf("%d\n", bucket.tab[i]);
+    }
+}
+// ⬆️ kod do debugowania
+
 int main(int argc, char *argv[]){        
     srand(time(NULL));
     unsigned long long table_size = 0;
@@ -79,13 +97,12 @@ int main(int argc, char *argv[]){
         return -1;
     }
     table_size = strtoll(argv[1], NULL, 0);
-
+    omp_set_num_threads(THRED_N); // ustawienie liczby wątków
     unsigned int* v = malloc(table_size * sizeof(unsigned int)); // alokowanie początkowej tablicy
     if(v == NULL){
         printf("Could not allocate table_size: %lld\n", table_size);
         return -1;
     }
-    printf("Generate table\n");
     generate_random_array(v, table_size);
     //show_tab(v, table_size);
     free(v);
