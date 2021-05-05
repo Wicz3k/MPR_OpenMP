@@ -11,25 +11,11 @@
 Niektóre zmienne na przykład maxValue będą zmienione tylko po to żeby móc to uruchamiać w celach testowych 
 
 ISTOTNE: "Do pomiaru użyć omp_get_wtime()"
-pomiary czasu:
-    - losowanie liczb
-    - rozdział liczb do kubełków
-        - w alg. 3 pomiar czasu połączenia kubełków, może być osobno, lub rozdzielone
-    - sortowanie kubełków
-    - przepisanie kubełków
-    -czas wykonania całości
-
-Mini schemat:
-    - losowanie liczb
-    - rozdział na kubełki
-    - sortowanie kubełków
-    - przepisanie do tablicy
-    - sprawdzenie czy dane wyniki są posortowane (po za pomiarem czasu)
 
 */
 unsigned int maxValue = 1000;//1000000000;
 unsigned int BUCKET_N = 10; //10000;
-unsigned int THRED_N = 2;
+unsigned int THRED_N = 1;
 
 struct Bucket {
     int *tab;
@@ -53,6 +39,8 @@ void generate_random_array(int *tab, int table_size){
         seeds[tn] = rand();
     }
     double start, end;
+    struct timeval tval_before, tval_after, tval_result;
+    gettimeofday(&tval_before, NULL); // !!! co innego do pomiaru czasu
     start = omp_get_wtime();
     #pragma omp parallel default(none) shared(seeds, table_size, tab, maxValue)
     {
@@ -64,7 +52,10 @@ void generate_random_array(int *tab, int table_size){
         }
     }
     end = omp_get_wtime();
+    gettimeofday(&tval_after, NULL); // !! co innego do pomiaru czasu
+    timersub(&tval_after, &tval_before, &tval_result);
     printf("Generowanie tablicy: %fs\n", end-start);
+    printf("generowanie tablicy: %ld.%06lds\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
     free(seeds);
     return;
 }
@@ -93,32 +84,6 @@ void resize_bucket(struct Bucket *bucket){
     bucket->max_size = new_max_size;
 }
 
-void buble_sort(struct Bucket *bucket){
-    int table_size = bucket->current_size;
-    int *tab = bucket->tab;
-    int i, j, swap;
-    for(i=0; i<table_size-1; i++){
-        for(j=0; j<table_size-i-1; j++){
-            if(tab[j] > tab[j+1]){
-                swap = tab[j];
-                tab[j] = tab[j+1];
-                tab[j+1] = swap;
-            }
-        }
-    }
-}
-
-int is_sorted(int *tab, int table_size){
-    int is_sorted = 1;
-    int i=0;
-    while(i<table_size-1 && is_sorted!=0){
-        if(tab[i]>tab[i+1]){
-            is_sorted = 0;
-        }
-        i++;
-    }
-    return is_sorted;
-}
 // ⬇️ kod do debugowania
 void show_tab(int *tab, int table_size){
     printf("Show table:\n");
@@ -150,21 +115,8 @@ int main(int argc, char *argv[]){
         printf("Could not allocate table_size: %lld\n", table_size);
         return -1;
     }
-    double start, end;
-    start = omp_get_wtime();
-    // przykład:
-    generate_random_array(v, table_size); // generowanie tablicy
-    struct Bucket *bucket = malloc(sizeof(struct Bucket)); // drobna gimnastyka bo bublesort przyjmuje tylko bucketa
-    bucket->tab = v;
-    bucket->max_size = table_size;
-    bucket->current_size = table_size;
-    buble_sort(bucket); // sortowanie na buckecie
-    int sorted;
-    sorted = is_sorted(v, table_size); // sprawdzenie czy posortowane 1 => wszystko dobrze, 0 => źle
-    printf("Is sorted: %d\n", sorted);
-    show_tab(v, table_size); // funkcja debugująca jeśli chcesz zajrzeć co i jak
-    end = omp_get_wtime();
-    printf("Całkowity czas wykonania algorytmu: %fs\n", end-start);
+    generate_random_array(v, table_size);
+    //show_tab(v, table_size);
     free(v);
     return 0;
 }
