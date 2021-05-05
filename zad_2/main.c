@@ -6,9 +6,25 @@
 //Sebastian Wilk
 //Damian Dymek
 
+/*
+
+Niektóre zmienne na przykład maxValue będą zmienione tylko po to żeby móc to uruchamiać w celach testowych 
+
+ISTOTNE: "Do pomiaru użyć omp_get_wtime()""
+*/
+
+struct Bucket {
+    int *tab;
+    int tab_size;
+    int current_size;
+} bucket;
+
+
 int main(int argc, char *argv[])
 {        
-    unsigned int maxValue = 1000000000;
+    unsigned int maxValue = 1000;//1000000000;
+    unsigned int bucket_numbers = 10; //10000;
+    unsigned int thred_number = 1;
     srand(time(NULL));
     unsigned long long table_size = 0;
     if(argc < 2){
@@ -17,12 +33,13 @@ int main(int argc, char *argv[])
     }
     table_size = strtoll(argv[1], NULL, 0);
 
-    unsigned int* v = malloc(table_size * sizeof(unsigned int));
+    unsigned int* v = malloc(table_size * sizeof(unsigned int)); // alokowanie początkowej tablicy
     if(v == NULL){
         printf("Could not allocate table_size: %lld\n", table_size);
         return -1;
     }
     int maxNThreads = 1;
+    omp_set_num_threads(thred_number) // ustawienie liczby wątków
     #pragma omp parallel
     {
         if(omp_get_thread_num() == 0)
