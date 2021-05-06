@@ -6,37 +6,7 @@
 //Sebastian Wilk
 //Damian Dymek
 
-/*
-
-Niektóre zmienne na przykład maxValue będą zmienione tylko po to żeby móc to uruchamiać w celach testowych 
-
-ISTOTNE: "Do pomiaru użyć omp_get_wtime()"
-pomiary czasu:
-    - losowanie liczb
-    - rozdział liczb do kubełków
-        - w alg. 3 pomiar czasu połączenia kubełków, może być osobno, lub rozdzielone
-    - sortowanie kubełków
-    - przepisanie kubełków
-    -czas wykonania całości
-
-Mini schemat:
-    - losowanie liczb
-    - rozdział na kubełki
-    - sortowanie kubełków
-    - przepisanie do tablicy
-    - sprawdzenie czy dane wyniki są posortowane (po za pomiarem czasu)
-
-
-Algorytm 1:
-    - każdy wątek czyta tablicę początkową (lepiej żeby każdy nie startował z tego samego indeksu)
-    - każdy wątek posiada własne kubełki z ustalonego dla wątku zakresu liczb
-    - każdy wątek sortuje własne kubełki
-    - barriera?
-    - każdy wątek zapisuje dane z kubełków do odpowiedniego fragmentu tablicy początkowej
-
-*/
-
-unsigned int maxValue = 1000;//1000000000;
+unsigned int maxValue = 1000000000;
 
 struct Bucket {
     int *tab;
@@ -94,6 +64,7 @@ void free_bucket(struct Bucket *bucket){
 
 // powiększenie bucketa jeśli jest zbyt mały
 void resize_bucket(struct Bucket *bucket){
+    printf("Warning resize bucket\n");
     int new_max_size = 2 * bucket->max_size;
     int *tab = realloc(bucket->tab, new_max_size*sizeof(int));
     bucket->tab = tab;
@@ -165,13 +136,19 @@ int main(int argc, char *argv[]){
         return -1;
     }
     table_size = strtoll(argv[1], NULL, 0);
+    int buckets_per_thread = 10;
     if(argc > 2){
-        int n = atoi(argv[2]);
-        if(n>0 && n <=4){
-            THREAD_N=n;
+        int tmp = atoi(argv[2]);
+        if(tmp>0){
+            buckets_per_thread = tmp;
         }
     }
-    int BUCKET_N = THREAD_N * 10;
+    if(argc > 3){
+        int tmp = atoi(argv[3]);
+        if(tmp>0 && tmp<=4)
+            THREAD_N = tmp;
+    }
+    int BUCKET_N = THREAD_N * buckets_per_thread;
     omp_set_num_threads(THREAD_N); // ustawienie liczby wątków
     unsigned int* v = malloc(table_size * sizeof(unsigned int)); // alokowanie początkowej tablicy
     if(v == NULL){
@@ -205,10 +182,13 @@ int main(int argc, char *argv[]){
         for(i=0; i<bucket_num; i++){
             bucket_tab[i] = declare_bucket(bucket_tab_size); // tworzenie pustych kubełków
         }
-        #pragma omp master
+        #pragma omp barrier
+        #pragma omp single
         {
             separating_start = omp_get_wtime(); 
         }
+    
+        
         // odczytanie wartości z tablicy i przypisanie do kubełka jeżeli znajduje się w przetwarzanym zakresie
         for(i=0; i<table_size; i++){
             int value = tab_ptr[(i + start_index) % table_size];
@@ -223,8 +203,8 @@ int main(int argc, char *argv[]){
         }
         thread_index_offsest[thread_id] = thread_num_counter;
 
-        #pragma omp barrier // barriera aby wszystkie wątki wpisały wartość do wspólnej tablicy
-        #pragma omp master
+        #pragma omp barrier
+        #pragma omp single
         {
             sorting_start = omp_get_wtime(); 
         }
@@ -232,8 +212,9 @@ int main(int argc, char *argv[]){
         for(i=0; i<bucket_num; i++){
             buble_sort(bucket_tab[i]);
         }
-        #pragma omp barrier // barriera aby wszystkie wątki wpisały wartość do wspólnej tablicy
-        #pragma omp master
+
+        #pragma omp barrier
+        #pragma omp single
         {
             write_start = omp_get_wtime(); 
         }
@@ -267,9 +248,9 @@ int main(int argc, char *argv[]){
             writing_time = program_end - write_start,
             program_time = program_end - program_start;
     printf("Generacja tablicy: %fs\n", generation_time - program_start);
-    printf("Deklaracja kubełków: %fs\n", separating_start - generation_time);
+    //printf("Deklaracja kubełków: %fs\n", separating_start - generation_time);
     printf("Rozdzielenie do kubełków: %fs\n", separation_time);
-    printf("Sortowanie: %fs\n", separation_time);
+    printf("Sortowanie: %fs\n", sorting_time);
     printf("Wpisywanie do tablicy: %fs\n", writing_time);
     printf("Całkowity czas wykonania algorytmu: %fs\n", program_time);
     free(v);
