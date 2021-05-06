@@ -30,6 +30,9 @@ Mini schemat:
 unsigned int maxValue = 1000000;//1000000000;
 unsigned int BUCKET_N = 10; //10000;
 unsigned int THRED_N = 2;
+    
+double program_start, program_end, generation_time, separating_start, sorting_start, write_start;
+
 
 struct Bucket {
     int *tab;
@@ -38,7 +41,7 @@ struct Bucket {
 };
 
 // generowanie tablicy z losowymi liczbami z zakresu 0 - maxValue
-void generate_random_array(unsigned int *tab, int table_size){
+double generate_random_array(unsigned int *tab, int table_size){
     int maxNThreads = 1;
     #pragma omp parallel 
     {
@@ -52,8 +55,8 @@ void generate_random_array(unsigned int *tab, int table_size){
     for (tn = 0; tn<maxNThreads; tn++){
         seeds[tn] = rand();
     }
-    double start, end;
-    start = omp_get_wtime();
+    //double start, end;
+    //start = omp_get_wtime();
     #pragma omp parallel default(none) shared(seeds, table_size, tab, maxValue)
     {
         int i;
@@ -63,10 +66,10 @@ void generate_random_array(unsigned int *tab, int table_size){
             tab[i] = rand_r(&myseed)%maxValue;
         }
     }
-    end = omp_get_wtime();
-    printf("Generowanie tablicy: %fs\n", end-start);
+    //end = omp_get_wtime();
+    //printf("Generowanie tablicy: %fs\n", end-start);
     free(seeds);
-    return;
+    return  omp_get_wtime();
 }
 
 // stworzenie kubełka z tablicą o rozmiarze table_size
@@ -170,6 +173,9 @@ void sort_table_parallel3(unsigned int *array, unsigned int table_size, int n_th
         }
     }
 
+    struct Bucket** sum_buckets = malloc(n_buckets * sizeof(struct Bucket*));
+
+    separating_start = omp_get_wtime(); 
     #pragma omp parallel
     {
         int thread_id = omp_get_thread_num();
@@ -182,10 +188,9 @@ void sort_table_parallel3(unsigned int *array, unsigned int table_size, int n_th
         }
     }
 
-    
-    struct Bucket** sum_buckets = malloc(n_buckets * sizeof(struct Bucket*));
     int* thread_elements_count_sums = malloc(n_threads * sizeof(int));
     
+    sorting_start = omp_get_wtime();
     #pragma omp parallel
     {
         int thread_elements_count_sum = 0;
@@ -212,6 +217,7 @@ void sort_table_parallel3(unsigned int *array, unsigned int table_size, int n_th
         thread_elements_count_sums[thread_id] = thread_elements_count_sum;
     }
 
+    write_start = omp_get_wtime(); 
     #pragma omp parallel
     {
         int thread_id = omp_get_thread_num();
@@ -273,17 +279,25 @@ int main(int argc, char *argv[]){
         }
     }
 
-    double start, end;
-    start = omp_get_wtime();
+    program_start = omp_get_wtime();
     // przykład:
-    generate_random_array(v, table_size); // generowanie tablicy
+    generation_time = generate_random_array(v, table_size); // generowanie tablicy
     sort_table_parallel3(v, table_size, maxNThreads, BUCKET_N);
+    program_end = omp_get_wtime();
     int sorted;
     sorted = is_sorted(v, table_size); // sprawdzenie czy posortowane 1 => wszystko dobrze, 0 => źle
     printf("Is sorted: %d\n", sorted);
     //show_tab(v, table_size); // funkcja debugująca jeśli chcesz zajrzeć co i jak
-    end = omp_get_wtime();
-    printf("Całkowity czas wykonania algorytmu: %fs\n", end-start);
+    double separation_time = sorting_start - separating_start,
+            sorting_time = write_start - sorting_start,
+            writing_time = program_end - write_start,
+            program_time = program_end - program_start;
+    printf("Generacja tablicy: %fs\n", generation_time - program_start);
+    //printf("Deklaracja kubełków: %fs\n", separating_start - generation_time);
+    printf("Rozdzielenie do kubełków: %fs\n", separation_time);
+    printf("Sortowanie: %fs\n", sorting_time);
+    printf("Wpisywanie do tablicy: %fs\n", writing_time);
+    printf("Całkowity czas wykonania algorytmu: %fs\n", program_time);
     free(v);
     return 0;
 }
