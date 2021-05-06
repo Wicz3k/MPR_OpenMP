@@ -27,7 +27,7 @@ Mini schemat:
     - sprawdzenie czy dane wyniki są posortowane (po za pomiarem czasu)
 
 */
-unsigned int maxValue = 1000;//1000000000;
+unsigned int maxValue = 1000000;//1000000000;
 unsigned int BUCKET_N = 10; //10000;
 unsigned int THRED_N = 2;
 
@@ -38,7 +38,7 @@ struct Bucket {
 };
 
 // generowanie tablicy z losowymi liczbami z zakresu 0 - maxValue
-void generate_random_array(int *tab, int table_size){
+void generate_random_array(unsigned int *tab, int table_size){
     int maxNThreads = 1;
     #pragma omp parallel 
     {
@@ -71,7 +71,7 @@ void generate_random_array(int *tab, int table_size){
 
 // stworzenie kubełka z tablicą o rozmiarze table_size
 struct Bucket *declare_bucket(int table_size){ 
-    struct Bucket *bucket = malloc(sizeof(Bucket));
+    struct Bucket *bucket = malloc(sizeof(struct Bucket));
     bucket->tab = malloc(table_size * sizeof(unsigned int));
     bucket->current_size = 0;
     bucket->max_size = table_size;
@@ -101,6 +101,15 @@ void resize_bucket(struct Bucket *bucket){
     bucket->max_size = new_max_size;
 }
 
+// dodaje wartość do tablicy w kubełku, jeśli tablica za mała powiększa ją
+void add_to_bucket(struct Bucket *bucket, int value){
+    if(bucket->current_size == bucket->max_size){
+        resize_bucket(bucket);
+    }
+    bucket->tab[bucket->current_size] = value;
+    bucket->current_size++;
+}
+
 void buble_sort(struct Bucket *bucket){
     int table_size = bucket->current_size;
     int *tab = bucket->tab;
@@ -116,7 +125,7 @@ void buble_sort(struct Bucket *bucket){
     }
 }
 
-int is_sorted(int *tab, int table_size){
+int is_sorted(unsigned int *tab, int table_size){
     int is_sorted = 1;
     int i=0;
     while(i<table_size-1 && is_sorted!=0){
@@ -128,7 +137,7 @@ int is_sorted(int *tab, int table_size){
     return is_sorted;
 }
 // ⬇️ kod do debugowania
-void show_tab(int *tab, int table_size){
+void show_tab(unsigned int *tab, int table_size){
     printf("Show table:\n");
     int i;
     for(i=0; i<table_size; i++){
@@ -144,21 +153,112 @@ void show_bucket(struct Bucket *bucket){
 }
 // ⬆️ kod do debugowania
 
-void sort_table_parallel3(int *array, int table_size, int n_threads, int buckets){
+void sort_table_parallel3(unsigned int *array, unsigned int table_size, int n_threads, unsigned long int n_buckets){
+    struct Bucket** all_buckets = malloc(n_threads * n_buckets * sizeof(struct Bucket*));
+    struct Bucket*** buckets = malloc(n_threads * sizeof(struct Bucket*));
+    
+    {
+        int i;
+        int subtable_size = table_size * 2 / n_threads / n_buckets;
+
+        for(i=0; i<n_threads * n_buckets; i++){
+            all_buckets[i] = declare_bucket(subtable_size);
+        }
+
+        for(i=0; i<n_threads; i++){
+            buckets[i] = all_buckets + i * n_buckets;
+        }
+    }
+
+    #pragma omp parallel
+    {
+        int thread_id = omp_get_thread_num();
+        int start_index = table_size * thread_id / n_threads;
+        int end_index = table_size * (thread_id + 1) / n_threads;
+        int i;
+        for(i=start_index; i< end_index; i++){
+            int val = array[i];
+            add_to_bucket(buckets[thread_id][val*n_buckets/maxValue], val);  
+        }
+    }
+
+    
+    struct Bucket** sum_buckets = malloc(n_buckets * sizeof(struct Bucket*));
+    int* thread_elements_count_sums = malloc(n_threads * sizeof(int));
+    
+    #pragma omp parallel
+    {
+        int thread_elements_count_sum = 0;
+        int thread_id = omp_get_thread_num();
+        int start_index = n_buckets * thread_id / n_threads;
+        int end_index = n_buckets * (thread_id + 1) / n_threads;
+        int i, j, k;  
+        for(i=start_index; i< end_index; i++){
+            int elem_count_sum = 0;
+            for(j = 0; j < n_threads; j++){
+                elem_count_sum += buckets[j][i]->current_size;
+            }
+            sum_buckets[i] = declare_bucket(elem_count_sum);
+            for(j = 0; j < n_threads; j++){
+                int elem_in_bucket = buckets[j][i]->current_size;
+                int* tmp_tab = buckets[j][i]->tab;
+                for(k = 0; k < elem_in_bucket; k++){
+                    add_to_bucket(sum_buckets[i], tmp_tab[k]);
+                }
+            }
+            buble_sort(sum_buckets[i]);
+            thread_elements_count_sum+=elem_count_sum;
+        }
+        thread_elements_count_sums[thread_id] = thread_elements_count_sum;
+    }
+
+    #pragma omp parallel
+    {
+        int thread_id = omp_get_thread_num();
+        int array_current_index = 0;
+        int i, j;
+        for(i=0; i<thread_id; i++){
+            array_current_index += thread_elements_count_sums[i];
+        }
+
+        int start_index = n_buckets * thread_id / n_threads;
+        int end_index = n_buckets * (thread_id + 1) / n_threads;
+
+        for(i = start_index; i < end_index; i++){
+            struct Bucket* current_bucket = sum_buckets[i];
+            int max_elements = current_bucket->current_size;
+            int* current_bucket_table = current_bucket -> tab;
+            for(j = 0; j < max_elements; j++){
+                array[array_current_index++] = current_bucket_table[j];
+            }
+        }
+    }
+
+
+
+    free(thread_elements_count_sums);
+
+    free_bucket_arr(sum_buckets, n_buckets);
+    free(sum_buckets);
+
+    free_bucket_arr(all_buckets, n_threads * n_buckets);
+    free(all_buckets);
+    
+    free(buckets);
+
     return;
-
-
-
 }
 
 int main(int argc, char *argv[]){        
     srand(time(NULL));
     unsigned long long table_size = 0;
-    if(argc < 2){
-        printf("Parameters: table_size\n");
+    if(argc < 4){
+        printf("Parameters: table_size, buckets_per_thread, max_threads\n");
         return -1;
     }
     table_size = strtoll(argv[1], NULL, 0);
+    BUCKET_N = atoi(argv[2]);
+    THRED_N = atoi(argv[3]);
     omp_set_num_threads(THRED_N); // ustawienie liczby wątków
     unsigned int* v = malloc(table_size * sizeof(unsigned int)); // alokowanie początkowej tablicy
     if(v == NULL){
@@ -173,34 +273,17 @@ int main(int argc, char *argv[]){
         }
     }
 
-    struct Bucket* all_buckets = malloc(maxNThreads * BUCKET_N * sizeof(struct Bucket*));
-    struct Bucket** buckets = malloc(maxNThreads * sizeof(struct Bucket*));
-    {
-        int i, j;
-        int subtable_size = table_size * 2 / maxNThreads / BUCKET_N;
-
-        for(i=0; i<maxNThreads * BUCKET_N; i++){
-            all_buckets[i] = declare_bucket(subtable_size);
-        }
-
-        for(i=0; i<maxNThreads; i++){
-            buckets[i] = all_buckets + i * BUCKET_N;
-        }
-    }
-
     double start, end;
     start = omp_get_wtime();
     // przykład:
     generate_random_array(v, table_size); // generowanie tablicy
-    sort_table_parallel3(v, table_size, maxNThreads, buckets);
+    sort_table_parallel3(v, table_size, maxNThreads, BUCKET_N);
     int sorted;
     sorted = is_sorted(v, table_size); // sprawdzenie czy posortowane 1 => wszystko dobrze, 0 => źle
     printf("Is sorted: %d\n", sorted);
-    show_tab(v, table_size); // funkcja debugująca jeśli chcesz zajrzeć co i jak
+    //show_tab(v, table_size); // funkcja debugująca jeśli chcesz zajrzeć co i jak
     end = omp_get_wtime();
     printf("Całkowity czas wykonania algorytmu: %fs\n", end-start);
-    free_bucket_arr(all_buckets);
-    free(all_buckets);
     free(v);
     return 0;
 }
