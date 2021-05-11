@@ -175,6 +175,8 @@ void sort_table_parallel3(unsigned int *array, unsigned int table_size, int n_th
 
     struct Bucket** sum_buckets = malloc(n_buckets * sizeof(struct Bucket*));
 
+    int* thread_elements_count_sums = malloc(n_threads * sizeof(int));
+
     separating_start = omp_get_wtime(); 
     #pragma omp parallel
     {
@@ -187,8 +189,6 @@ void sort_table_parallel3(unsigned int *array, unsigned int table_size, int n_th
             add_to_bucket(buckets[thread_id][val*n_buckets/maxValue], val);  
         }
     }
-
-    int* thread_elements_count_sums = malloc(n_threads * sizeof(int));
     
     sorting_start = omp_get_wtime();
     #pragma omp parallel
@@ -240,6 +240,7 @@ void sort_table_parallel3(unsigned int *array, unsigned int table_size, int n_th
         }
     }
 
+    program_end = omp_get_wtime();
 
 
     free(thread_elements_count_sums);
@@ -283,21 +284,22 @@ int main(int argc, char *argv[]){
     // przykład:
     generation_time = generate_random_array(v, table_size); // generowanie tablicy
     sort_table_parallel3(v, table_size, maxNThreads, BUCKET_N);
-    program_end = omp_get_wtime();
     int sorted;
     sorted = is_sorted(v, table_size); // sprawdzenie czy posortowane 1 => wszystko dobrze, 0 => źle
     printf("Is sorted: %d\n", sorted);
     //show_tab(v, table_size); // funkcja debugująca jeśli chcesz zajrzeć co i jak
-    double separation_time = sorting_start - separating_start,
+    double  generation_time_spend = generation_time - program_start,
+            allocation_time = separating_start - generation_time,
+            separation_time = sorting_start - separating_start,
             sorting_time = write_start - sorting_start,
             writing_time = program_end - write_start,
             program_time = program_end - program_start;
-    printf("Generacja tablicy: %fs\n", generation_time - program_start);
-    //printf("Deklaracja kubełków: %fs\n", separating_start - generation_time);
-    printf("Rozdzielenie do kubełków: %fs\n", separation_time);
-    printf("Sortowanie: %fs\n", sorting_time);
-    printf("Wpisywanie do tablicy: %fs\n", writing_time);
-    printf("Całkowity czas wykonania algorytmu: %fs\n", program_time);
+    printf("%fs", generation_time_spend);
+    printf(", %fs", allocation_time);
+    printf(", %fs", separation_time);
+    printf(", %fs", sorting_time);
+    printf(", %fs", writing_time);
+    printf(", %fs", program_time);
     free(v);
     return 0;
 }
